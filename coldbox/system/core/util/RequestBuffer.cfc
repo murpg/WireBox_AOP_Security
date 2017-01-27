@@ -1,7 +1,7 @@
 ﻿<!-----------------------------------------------------------------------
 ********************************************************************************
 Copyright Since 2005 ColdBox Framework by Luis Majano and Ortus Solutions, Corp
-www.coldbox.org | www.luismajano.com | www.ortussolutions.com
+www.ortussolutions.com
 ********************************************************************************
 
 Author     :	Luis Majano
@@ -19,6 +19,8 @@ Description :
 			instance = structnew();
 			/* Setup properties */
 			instance.bufferKey = "_cbox_request_buffer";
+			// class id code
+			instance.classID = createObject("java", "java.lang.System").identityHashCode( this );
 
 			return this;
 		</cfscript>
@@ -61,10 +63,10 @@ Description :
 
 		<!--- Double Lock --->
 		<cfif not isBufferInScope()>
-			<cflock name="#instance.bufferkey#" type="exclusive" timeout="10" throwontimeout="true">
+			<cflock name="#instance.classID#.#instance.bufferkey#" type="exclusive" timeout="10" throwontimeout="true">
 				<cfif not isBufferInScope()>
 					<!--- Create Buffer --->
-					<cfset oBuffer = createObject("java","java.lang.StringBuffer").init('')>
+					<cfset oBuffer = createObject("java","java.lang.StringBuilder").init('')>
 					<!--- Place in Scope --->
 					<cfset request[instance.bufferKey] = oBuffer>
 				</cfif>

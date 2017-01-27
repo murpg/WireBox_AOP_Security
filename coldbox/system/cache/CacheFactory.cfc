@@ -1,7 +1,7 @@
 ﻿<!-----------------------------------------------------------------------
 ********************************************************************************
 Copyright Since 2005 ColdBox Framework by Luis Majano and Ortus Solutions, Corp
-www.coldbox.org | www.luismajano.com | www.ortussolutions.com
+www.ortussolutions.com
 ********************************************************************************
 
 Author 	    :	Luis Majano
@@ -27,7 +27,7 @@ Description :
 				// CacheBox Factory UniqueID
 				factoryID = createObject('java','java.lang.System').identityHashCode(this),
 				// Version
-				version = "1.6.0.00061",
+				version = "4.3.0+188",
 				// Configuration object
 				config  = "",
 				// ColdBox Application Link
@@ -66,6 +66,15 @@ Description :
 			// Prepare Lock Info
 			instance.lockName = "CacheFactory.#instance.factoryID#";
 
+			// Passed in configuration?
+			if( NOT structKeyExists( arguments, "config" ) ){
+				// Create default configuration
+				arguments.config = createObject( "component", "coldbox.system.cache.config.CacheBoxConfig" ).init( CFCConfigPath=defaultConfigPath );
+			}
+			else if( isSimpleValue( arguments.config ) ){
+				arguments.config = createObject( "component", "coldbox.system.cache.config.CacheBoxConfig" ).init( CFCConfigPath=arguments.config );
+			}
+
 			// Check if linking ColdBox
 			if( structKeyExists(arguments, "coldbox") ){
 				// Link ColdBox
@@ -79,18 +88,9 @@ Description :
 			}
 			else{
 				// Running standalone, so create our own logging first
-				configureLogBox();
+				configureLogBox( arguments.config.getLogBoxConfig() );
 				// Running standalone, so create our own event manager
 				configureEventManager();
-			}
-
-			// Passed in configuration?
-			if( NOT structKeyExists( arguments, "config" ) ){
-				// Create default configuration
-				arguments.config = createObject( "component", "coldbox.system.cache.config.CacheBoxConfig" ).init( CFCConfigPath=defaultConfigPath );
-			}
-			else if( isSimpleValue( arguments.config ) ){
-				arguments.config = createObject( "component", "coldbox.system.cache.config.CacheBoxConfig" ).init( CFCConfigPath=arguments.config );
 			}
 
 			// Configure Logging for the Cache Factory
@@ -122,9 +122,9 @@ Description :
 					thisListener.configure( this, listeners[x].properties);
 				}
 				catch(Any e){
-					getUtil().throwit(message="Error creating listener: #listeners[x].toString()#",
-									  detail="#e.message# #e.detail# #e.stackTrace#",
-									  type="CacheBox.ListenerCreationException");
+					throw(message="Error creating listener: #listeners[x].toString()#",
+						  detail="#e.message# #e.detail# #e.stackTrace#",
+						  type="CacheBox.ListenerCreationException");
 				}
 
 				// Now register listener
@@ -210,16 +210,16 @@ Description :
 
 			// Check length
 			if( len(arguments.name) eq 0 ){
-				getUtil().throwit(message="Invalid Cache Name",
-								  detail="The name you sent in is invalid as it was blank, please send in a name",
-								  type="CacheFactory.InvalidNameException");
+				throw(message="Invalid Cache Name",
+					  detail="The name you sent in is invalid as it was blank, please send in a name",
+					  type="CacheFactory.InvalidNameException");
 			}
 
 			// Check it does not exist already
 			if( cacheExists( arguments.name ) ){
-				getUtil().throwit(message="Cache #arguments.name# already exists",
-								  detail="Cannot register named cache as it already exists in the registry",
-								  type="CacheFactory.CacheExistsException");
+				throw(message="Cache #arguments.name# already exists",
+					  detail="Cannot register named cache as it already exists in the registry",
+					  type="CacheFactory.CacheExistsException");
 			}
 
 			// Create default cache instance
@@ -657,12 +657,15 @@ Description :
     </cffunction>
 
 	<!--- configureLogBox --->
-    <cffunction name="configureLogBox" output="false" access="private" returntype="void" hint="Configure a standalone version of logBox for logging">
+    <cffunction name="configureLogBox" output="false" access="private" returntype="CacheFactory" hint="Configure a standalone version of logBox for logging">
+    	<cfargument name="configPath" required="true" type="string" hint="The LogBox configuration CFC path">
     	<cfscript>
-    		// Config LogBox Configuration
-			var config = createObject("component","coldbox.system.logging.config.LogBoxConfig").init(CFCConfigPath="coldbox.system.cache.config.LogBox");
-			// Create LogBox
-			instance.logBox = createObject("component","coldbox.system.logging.LogBox").init( config );
+    		// Create config object
+    		var oConfig = new coldbox.system.logging.config.LogBoxConfig( CFCConfigPath = arguments.configPath );
+			// Create LogBox standalone and store it
+			instance.logBox = new coldbox.system.logging.LogBox( oConfig );
+
+			return this;
 		</cfscript>
     </cffunction>
 

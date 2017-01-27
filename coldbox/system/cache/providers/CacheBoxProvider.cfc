@@ -1,7 +1,7 @@
 ﻿<!-----------------------------------------------------------------------
 ********************************************************************************
 Copyright Since 2005 ColdBox Framework by Luis Majano and Ortus Solutions, Corp
-www.coldbox.org | www.luismajano.com | www.ortussolutions.com
+www.ortussolutions.com
 ********************************************************************************
 
 Author 	    :	Luis Majano
@@ -91,9 +91,10 @@ Properties
 
 			// Prepare the logger
 			instance.logger = getCacheFactory().getLogBox().getLogger( this );
-			
-			if( instance.logger.canDebug() )
+
+			if( instance.logger.canDebug() ){
 				instance.logger.debug("Starting up CacheBox Cache: #getName()# with configuration: #cacheConfig.toString()#");
+			}
 
 			// Validate the configuration
 			validateConfiguration();
@@ -102,24 +103,12 @@ Properties
 			instance.stats = CreateObject("component","coldbox.system.cache.util.CacheStats").init(this);
 
 			// Setup the eviction Policy to use
-			try{
-				evictionPolicy = locateEvictionPolicy( cacheConfig.evictionPolicy );
-				instance.evictionPolicy = CreateObject("component", evictionPolicy).init(this);
-			}
-			catch(Any e){
-				instance.logger.error("Error creating eviction policy: #evictionPolicy#", e);
-				getUtil().throwit('Error creating eviction policy: #evictionPolicy#','#e.message# #e.detail# #e.stackTrace#','CacheBoxProvider.EvictionPolicyCreationException');
-			}
+			evictionPolicy 			= locateEvictionPolicy( cacheConfig.evictionPolicy );
+			instance.evictionPolicy = CreateObject("component", evictionPolicy).init(this);
 
 			// Create the object store the configuration mandated
-			try{
-				objectStore = locateObjectStore( cacheConfig.objectStore );
-				instance.objectStore = CreateObject("component", objectStore).init(this);
-			}
-			catch(Any e){
-				instance.logger.error("Error creating object store: #objectStore#", e);
-				getUtil().throwit('Error creating object store #objectStore#','#e.message# #e.detail# #e.stackTrace#','CacheBoxProvider.ObjectStoreCreationException');
-			}
+			objectStore 			= locateObjectStore( cacheConfig.objectStore );
+			instance.objectStore 	= CreateObject("component", objectStore).init(this);
 
 			// Enable cache
 			instance.enabled = true;
@@ -127,8 +116,9 @@ Properties
 			instance.reportingEnabled = true;
 
 			// startup message
-			if( instance.logger.canDebug() )
+			if( instance.logger.canDebug() ){
 				instance.logger.debug( "CacheBox Cache: #getName()# has been initialized successfully for operation" );
+			}
 		</cfscript>
 		</cflock>
 
@@ -354,7 +344,7 @@ Properties
 			}
 		</cfscript>
 	</cffunction>
-	
+
 	<!--- getOrSet --->
 	<cffunction name="getOrSet" access="public" output="false" returntype="any" hint="Tries to get an object from the cache, if not found, it calls the 'produce' closure to produce the data and cache it.">
 		<!--- ************************************************************* --->
@@ -380,15 +370,15 @@ Properties
 					// produce it
 					refLocal.object = arguments.produce();
 					// store it
-					set( objectKey=arguments.objectKey, 
-						 object=refLocal.object, 
+					set( objectKey=arguments.objectKey,
+						 object=refLocal.object,
 						 timeout=arguments.timeout,
 						 lastAccessTimeout=arguments.lastAccessTimeout,
 						 extra=arguments.extra );
 				}
 			</cfscript>
 		</cflock>
-		
+
 		<cfreturn refLocal.object>
 	</cffunction>
 

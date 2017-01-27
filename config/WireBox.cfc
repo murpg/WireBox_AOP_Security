@@ -7,7 +7,7 @@ component extends="coldbox.system.ioc.config.Binder" {
 		
 		// Declare our aspect
 		mapAspect( 'security' )
-			.to( 'model.security' );
+			.to( 'models.security' );
 				
 	}	
 }

@@ -1,7 +1,7 @@
 ﻿/**
 ********************************************************************************
 Copyright Since 2005 ColdBox Framework by Luis Majano and Ortus Solutions, Corp
-www.coldbox.org | www.luismajano.com | www.ortussolutions.com
+www.ortussolutions.com
 ********************************************************************************
 Author: Luis Majano
 Description:
@@ -453,12 +453,12 @@ component serializable="false" implements="coldbox.system.cache.ICacheProvider"{
 		
 		// Async? IF so, do checks
 		if( arguments.async AND NOT instance.utility.inThread() ){
-			thread name="#threadName#"{
-				instance.elementCleaner.clearByKeySnippet(arguments.keySnippet,arguments.regex);
+			thread name="#threadName#" keySnippet="#arguments.keySnippet#" regex="#arguments.regex#"{
+				instance.elementCleaner.clearByKeySnippet( attribues.keySnippet, attribues.regex );
 			}
 		}
 		else{
-			instance.elementCleaner.clearByKeySnippet(arguments.keySnippet,arguments.regex);
+			instance.elementCleaner.clearByKeySnippet( arguments.keySnippet, arguments.regex );
 		}
 	}
 	

@@ -1,0 +1,10 @@
+{
+    "dependencies":{
+        "coldbox":"^4.3.0+188",
+        "cbstorages":"^1.3.0+14"
+    },
+    "installPaths":{
+        "coldbox":"coldbox",
+        "cbstorages":"modules\\cbstorages"
+    }
+}

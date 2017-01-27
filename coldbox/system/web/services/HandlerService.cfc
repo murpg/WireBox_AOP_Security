@@ -1,7 +1,7 @@
 ﻿<!-----------------------------------------------------------------------
 ********************************************************************************
 Copyright Since 2005 ColdBox Framework by Luis Majano and Ortus Solutions, Corp
-www.coldbox.org | www.luismajano.com | www.ortussolutions.com
+www.ortussolutions.com
 ********************************************************************************
 
 Author     :	Luis Majano
@@ -19,13 +19,13 @@ Description :
 		<!--- ************************************************************* --->
 		<cfscript>
 			// Setup The Controller.
-			setController(arguments.controller);
+			variables.controller = arguments.controller;
 
 			// Setup the Event Handler Cache Dictionary
 			instance.handlerCacheDictionary = {};
 			// Setup the Event Cache Dictionary
 			instance.eventCacheDictionary = {};
-			// Plugin base class
+			// Handler base class
 			instance.HANDLER_BASE_CLASS = "coldbox.system.EventHandler";
 
 			return this;
@@ -53,7 +53,7 @@ Description :
 			instance.eventCaching				= controller.getSetting("EventCaching");
 			instance.handlersInvocationPath		= controller.getSetting("HandlersInvocationPath");
 			instance.handlersExternalLocation	= controller.getSetting("HandlersExternalLocation");
-			instance.templateCache				= getColdboxOCM("template");
+			instance.templateCache				= controller.getCache( "template" );
 			instance.modules					= controller.getSetting("modules");
 			instance.interceptorService			= controller.getInterceptorService();
     	</cfscript>
@@ -104,16 +104,16 @@ Description :
 					isHandler	= true
 				};
 				// feed this handler to wirebox with virtual inheritance just in case, use registerNewInstance so its thread safe
-				mapping = wirebox.registerNewInstance(name=invocationPath, instancePath=invocationPath)
+				mapping = wirebox.registerNewInstance( name=invocationPath, instancePath=invocationPath )
 					.setVirtualInheritance( "coldbox.system.EventHandler" )
-					.addDIConstructorArgument(name="controller", value=controller)
+					.addDIConstructorArgument( name="controller", value=controller )
 					.setThreadSafe( true )
-					.setScope( wirebox.getBinder().SCOPES.CACHEBOX )
-					.setCacheProperties(key="handlers-#invocationPath#")
+					.setScope( wirebox.getBinder().SCOPES.SINGLETON )
+					.setCacheProperties( key="handlers-#invocationPath#" )
 					.setExtraAttributes( attribs );
 				// Are we caching or not handlers?
-				if ( NOT instance.handlerCaching ){ 
-					mapping.setScope( wirebox.getBinder().SCOPES.NOSCOPE ); 
+				if ( NOT instance.handlerCaching ){
+					mapping.setScope( wirebox.getBinder().SCOPES.NOSCOPE );
 				}
 			}
 			// retrieve, build and wire from wirebox
@@ -131,22 +131,22 @@ Description :
 		<cfargument name="requestContext"   type="any" required="true" hint="The request context"/>
 		<!--- ************************************************************* --->
 		<cfscript>
-			var oEventHandler = "";
-			var oRequestContext = arguments.requestContext;
-			var eventCachingData = structnew();
-			var oEventURLFacade = instance.templateCache.getEventURLFacade();
-			var eventDictionaryEntry = "";
+			var oEventHandler 			= "";
+			var oRequestContext 		= arguments.requestContext;
+			var eventCachingData 		= {};
+			var oEventURLFacade 		= instance.templateCache.getEventURLFacade();
+			var eventDictionaryEntry 	= "";
 
-			// Create Runnable Object
+			// Create Runnable Object via WireBox
 			oEventHandler = newHandler( arguments.ehBean.getRunnable() );
 
 			/* ::::::::::::::::::::::::::::::::::::::::: EVENT METHOD TESTING :::::::::::::::::::::::::::::::::::::::::::: */
 
 			// Does requested method/action of execution exist in handler?
-			if ( NOT oEventHandler._actionExists(arguments.ehBean.getMethod()) ){
+			if( NOT oEventHandler._actionExists( arguments.ehBean.getMethod() ) ){
 
 				// Check if the handler has an onMissingAction() method, virtual Events
-				if( oEventHandler._actionExists("onMissingAction") ){
+				if( oEventHandler._actionExists( "onMissingAction" ) ){
 					// Override the method of execution
 					arguments.ehBean.setMissingAction( arguments.ehBean.getMethod() );
 					// Let's go execute our missing action
@@ -154,42 +154,60 @@ Description :
 				}
 
 				// Test for Implicit View Dispatch
-				if( controller.getSetting(name="ImplicitViews") AND isViewDispatch(arguments.ehBean.getFullEvent(),arguments.ehBean) ){
+				if( controller.getSetting( name="ImplicitViews" ) AND 
+					isViewDispatch( arguments.ehBean.getFullEvent(), arguments.ehBean ) 
+				){
 					return oEventHandler;
 				}
 
 				// Invalid Event procedures
-				invalidEvent(arguments.ehBean.getFullEvent(), arguments.ehBean);
+				invalidEvent( arguments.ehBean.getFullEvent(), arguments.ehBean );
 
 				// If we get here, then the invalid event kicked in and exists, else an exception is thrown
 				// Go retrieve the handler that will handle the invalid event so it can execute.
-				return getHandler( getRegisteredHandler(arguments.ehBean.getFullEvent()), oRequestContext);
+				return getHandler( 
+					getRegisteredHandler( arguments.ehBean.getFullEvent() ), 
+					oRequestContext
+				);
 				//return getHandler(arguments.ehBean,oRequestContext);
 
 			}//method check finalized.
 
+			// Store action metadata
+			arguments.ehBean.setActionMetadata( 
+				oEventHandler._actionMetadata( arguments.ehBean.getMethod() )
+			);
+
 			/* ::::::::::::::::::::::::::::::::::::::::: EVENT CACHING :::::::::::::::::::::::::::::::::::::::::::: */
 
-			// Event Caching Routines, if using caching and we are executing the main event
-			if ( instance.eventCaching and ehBean.getFullEvent() eq oRequestContext.getCurrentEvent() ){
+			// Event Caching Routines, if using caching, NOT a private event and we are executing the main event
+			if ( 
+				instance.eventCaching AND 
+				!arguments.ehBean.getIsPrivate() AND
+				arguments.ehBean.getFullEvent() EQ oRequestContext.getCurrentEvent()
+			){
 
 				// Save Event Caching metadata
-				saveEventCachingMetadata(eventUDF=oEventHandler[ehBean.getMethod()],
-										 cacheKey=ehBean.getFullEvent(),
-										 cacheKeySuffix=oEventHandler.EVENT_CACHE_SUFFIX);
+				saveEventCachingMetadata(
+					eventUDF 	 	= oEventHandler[ arguments.ehBean.getMethod() ],
+					cacheKey 		= arguments.ehBean.getFullEvent(),
+					cacheKeySuffix 	= oEventHandler.EVENT_CACHE_SUFFIX
+				);
 
 				// get dictionary entry for operations, it is now guaranteed
-				eventDictionaryEntry = instance.eventCacheDictionary[ ehBean.getFullEvent() ];
+				eventDictionaryEntry = instance.eventCacheDictionary[ arguments.ehBean.getFullEvent() ];
 
 				// Do we need to cache this event's output after it executes??
 				if ( eventDictionaryEntry.cacheable ){
 					// Create caching data structure according to MD.
-					structAppend(eventCachingData,eventDictionaryEntry,true);
+					structAppend( eventCachingData, eventDictionaryEntry, true );
 
 					// Create the Cache Key to save
-					eventCachingData.cacheKey = oEventURLFacade.buildEventKey(keySuffix=eventCachingData.suffix,
-																		      targetEvent=ehBean.getFullEvent(),
-																		      targetContext=oRequestContext);
+					eventCachingData.cacheKey = oEventURLFacade.buildEventKey(
+						keySuffix 		= eventCachingData.suffix,
+						targetEvent 	= arguments.ehBean.getFullEvent(),
+						targetContext 	= oRequestContext
+					);
 
 
 					// Event is cacheable and we need to flag it so the Renderer caches it
@@ -274,7 +292,7 @@ Description :
 				}
 			}
 			// log it as application log
-			controller.getPlugin("Logger").error("Invalid Module Event Called: #arguments.event#. The module: #moduleReceived# is not valid. Valid Modules are: #structKeyList(moduleSettings)#");
+			instance.log.error( "Invalid Module Event Called: #arguments.event#. The module: #moduleReceived# is not valid. Valid Modules are: #structKeyList(moduleSettings)#" );
 		}
 		else{
 			// Try to do list localization in the registry for full event string.
@@ -317,7 +335,7 @@ Description :
 		<cfscript>
     		// Cleanup for modules
 			var cEvent     		= reReplaceNoCase(arguments.event,"^([^:.]*):","");
-			var renderer 		= controller.getPlugin("Renderer");
+			var renderer 		= controller.getRenderer();
 			var targetView		= "";
 			var targetModule	= getToken(arguments.event,1,":");
 
@@ -353,7 +371,7 @@ Description :
 			iData.invalidEvent 	= arguments.event;
 			iData.ehBean 		= arguments.ehBean;
 			iData.override 		= false;
-			instance.interceptorService.processState("onInvalidEvent",iData);
+			instance.interceptorService.processState( "onInvalidEvent", iData );
 
 			//If the override was changed by the interceptors then they updated the ehBean of execution
 			if( iData.override ){
@@ -364,10 +382,10 @@ Description :
 			if ( len(trim(instance.onInvalidEvent)) ){
 
 				// Test for invalid Event Error
-				if ( compareNoCase(instance.onInvalidEvent,arguments.event) eq 0 ){
-					getUtil().throwit(message="The onInvalid event is also invalid",
-									  detail="The onInvalidEvent setting is also invalid: #instance.onInvalidEvent#. Please check your settings",
-									  type="HandlerService.onInValidEventSettingException");
+				if ( compareNoCase( instance.onInvalidEvent, arguments.event ) eq 0 ){
+					throw( message="The onInvalid event is also invalid",
+						   detail="The onInvalidEvent setting is also invalid: #instance.onInvalidEvent#. Please check your settings",
+						   type="HandlerService.onInValidEventSettingException");
 				}
 
 				// Store Invalid Event in PRC
@@ -384,49 +402,47 @@ Description :
 			}
 
 			// Invalid Event Detected, log it in the Application log, not a coldbox log but an app log
-			controller.getPlugin("Logger").error("Invalid Event detected: #arguments.event#. Path info: #cgi.path_info# , query string: #cgi.query_string#");
+			instance.log.error( "Invalid Event detected: #arguments.event#. Path info: #cgi.path_info#, query string: #cgi.query_string#" );
 
 			// Throw Exception
-			getUtil().throwit(message="The event: #arguments.event# is not valid registered event.",type="HandlerService.EventHandlerNotRegisteredException");
+			throw( message="The event: #arguments.event# is not valid registered event.", type="HandlerService.EventHandlerNotRegisteredException" );
 		</cfscript>
 	</cffunction>
 
 	<!--- Handler Registration System --->
 	<cffunction name="registerHandlers" access="public" returntype="void" hint="I register your application's event handlers" output="false">
 		<cfscript>
-		var HandlersPath = controller.getSetting("HandlersPath");
-		var HandlersExternalLocationPath = controller.getSetting("HandlersExternalLocationPath");
-		var HandlerArray = Arraynew(1);
-		var HandlersExternalArray = ArrayNew(1);
+		var handlersPath = controller.getSetting( "handlersPath" );
+		var handlersExternalLocationPath = controller.getSetting( "handlersExternalLocationPath" );
+		var handlerArray = [];
+		var handlersExternalArray = [];
 
 		/* ::::::::::::::::::::::::::::::::::::::::: HANDLERS BY CONVENTION :::::::::::::::::::::::::::::::::::::::::::: */
 
-		//Get recursive Array listing
-		HandlerArray = getHandlerListing(HandlersPath);
+		// Get recursive Array listing
+		handlerArray = getHandlerListing( handlersPath );
 
-		//Set registered Handlers
-		controller.setSetting(name="RegisteredHandlers",value=arrayToList(HandlerArray));
+		// Set registered Handlers
+		controller.setSetting( name="registeredHandlers", value=arrayToList( handlerArray ) );
 
 		/* ::::::::::::::::::::::::::::::::::::::::: EXTERNAL HANDLERS :::::::::::::::::::::::::::::::::::::::::::: */
 
-		if( len(HandlersExternalLocationPath) ){
+		if( len( handlersExternalLocationPath ) ){
 
-			//Check for Handlers Directory Location
-			if ( not directoryExists(HandlersExternalLocationPath) ){
-				getUtil().throwit("The external handlers directory: #HandlersExternalLocationPath# does not exist please check your application structure.","","HandlerService.HandlersDirectoryNotFoundException");
+			// Check for handlers Directory Location
+			if ( !directoryExists( handlersExternalLocationPath ) ){
+				throw(
+					message = "The external handlers directory: #HandlersExternalLocationPath# does not exist please check your application structure.",
+					type 	= "HandlerService.HandlersDirectoryNotFoundException"
+				);
 			}
 
-			//Get recursive Array listing
-			HandlersExternalArray = getHandlerListing(HandlersExternalLocationPath);
+			// Get recursive Array listing
+			handlersExternalArray = getHandlerListing( handlersExternalLocationPath );
 		}
 
-		//Verify it
-		if ( ArrayLen(HandlerArray) eq 0 AND ArrayLen(HandlersExternalArray) eq 0){
-			getUtil().throwit("No handlers were found in: #HandlersPath# or in #HandlersExternalLocationPath#. So I have no clue how you are going to run this application.","","HandlerService.NoHandlersFoundException");
-		}
-
-		//Set registered External Handlers
-		controller.setSetting(name="RegisteredExternalHandlers",value=arrayToList(HandlersExternalArray));
+		// Set registered External Handlers
+		controller.setSetting( name="registeredExternalHandlers", value=arrayToList( handlersExternalArray ) );
 		</cfscript>
 	</cffunction>
 
@@ -485,7 +501,7 @@ Description :
 				cleanHandler = removeChars(replacenocase(cleanHandler,"/",".","all"),1,1);
 
 				//Clean Extension
-				cleanHandler = getUtil().ripExtension(cleanhandler);
+				cleanHandler = controller.getUtil().ripExtension(cleanhandler);
 
 				//Add data to array
 				ArrayAppend(fileArray,cleanHandler);
@@ -504,10 +520,10 @@ Description :
 			// Check if handler mapped?
 			if( NOT wirebox.getBinder().mappingExists( instance.HANDLER_BASE_CLASS ) ){
 				// feed the base class
-				wirebox.registerNewInstance(name=instance.HANDLER_BASE_CLASS,instancePath=instance.HANDLER_BASE_CLASS)
-					.addDIConstructorArgument(name="controller", value=controller);
+				wirebox.registerNewInstance( name=instance.HANDLER_BASE_CLASS, instancePath=instance.HANDLER_BASE_CLASS )
+					.addDIConstructorArgument( name="controller", value=controller );
 				// register ourselves to listen for autowirings
-				instance.interceptorService.registerInterceptionPoint("HandlerService","afterInstanceAutowire",this);
+				instance.interceptorService.registerInterceptionPoint( "HandlerService", "afterInstanceAutowire", this );
 			}
     	</cfscript>
     </cffunction>
@@ -538,7 +554,7 @@ Description :
 		<cfset var mdEntry  = 0>
 
 		<cfif NOT structKeyExists( instance.eventCacheDictionary, arguments.cacheKey)>
-			<cflock name="handlerservice.eventcachingmd.#arguments.cacheKey#" type="exclusive" throwontimeout="true" timeout="10">
+			<cflock name="handlerservice.#getController().getAppHash()#.eventcachingmd.#arguments.cacheKey#" type="exclusive" throwontimeout="true" timeout="10">
 			<cfscript>
 			// Determine if we have md for the event to execute in the md dictionary, else set it
 			if ( NOT structKeyExists( instance.eventCacheDictionary, arguments.cacheKey) ){

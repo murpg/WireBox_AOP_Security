@@ -13,6 +13,7 @@ component {
 	setting enablecfoutputonly="yes";
 	// APPLICATION CFC PROPERTIES
 	this.name = hash(getCurrentTemplatePath());
+	this.sessionmanagement = "yes";
 	
 	COLDBOX_APP_ROOT_PATH = getDirectoryFromPath(getCurrentTemplatePath());
 	COLDBOX_APP_MAPPING = "";
@@ -21,20 +22,23 @@ component {
 	
 	function onApplicationStart() {
 		//Load ColdBox
-		application.cbBootstrap = CreateObject("component","coldbox.system.Coldbox").init(COLDBOX_CONFIG_FILE,COLDBOX_APP_ROOT_PATH,COLDBOX_APP_KEY,COLDBOX_APP_MAPPING);
-		application.cbBootstrap.loadColdbox();
-		return true;
+			//Load ColdBox Bootstrap
+			application.cbBootstrap = new coldbox.system.Bootstrap( COLDBOX_CONFIG_FILE, COLDBOX_APP_ROOT_PATH, COLDBOX_APP_KEY, COLDBOX_APP_MAPPING );
+			application.cbBootstrap.loadColdbox();
+			//writeDump(application.cbBootstrap); abort;
+			return true;
 	}
 	
 	function onRequestStart(required string targetPage) {
-		//  BootStrap Reinit Check --->
+		 //BootStrap Reinit Check
 		if( !structKeyExists(application,"cbBootstrap") or application.cbBootStrap.isfwReinit() ) {
 			lock name="coldbox.bootstrap_#hash(getCurrentTemplatePath())#" type="exclusive" timeout="5" throwontimeout="true" {
 				structDelete(application,"cbBootStrap");
-				application.cbBootstrap = CreateObject("component","coldbox.system.Coldbox").init(COLDBOX_CONFIG_FILE,COLDBOX_APP_ROOT_PATH,COLDBOX_APP_KEY,COLDBOX_APP_MAPPING);
+				application.cbBootstrap = new coldbox.system.Bootstrap( COLDBOX_CONFIG_FILE, COLDBOX_APP_ROOT_PATH, COLDBOX_APP_KEY, COLDBOX_APP_MAPPING );
+			application.cbBootstrap.loadColdbox();
 			}
 		}
-		// On Request Start via ColdBox
+		//On Request Start via ColdBox
 		application.cbBootstrap.onRequestStart(arguments.targetPage);
 		
 		return true;

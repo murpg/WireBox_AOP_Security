@@ -1,7 +1,7 @@
 ﻿<!-----------------------------------------------------------------------
 ********************************************************************************
 Copyright Since 2005 ColdBox Framework by Luis Majano and Ortus Solutions, Corp
-www.coldbox.org | www.luismajano.com | www.ortussolutions.com
+www.ortussolutions.com
 ********************************************************************************
 
 Author     :	Luis Majano
@@ -15,7 +15,6 @@ Description :
 	<!--- init --->
     <cffunction name="init" output="false" access="public" returntype="BeanPopulator" hint="Constructor">
     	<cfscript>
-    		JSONUtil  = createObject("component","coldbox.system.core.conversion.JSON").init();
 			mixerUtil = createObject("component","coldbox.system.core.dynamic.MixerUtil").init();
 
 			return this;
@@ -40,7 +39,7 @@ Description :
 		<!--- ************************************************************* --->
 		<cfscript>
 			// Inflate JSON
-			arguments.memento = JSONUtil.decode(arguments.JSONString);
+			arguments.memento = deserializeJSON( arguments.JSONString );
 
 			// populate and return
 			return populateFromStruct(argumentCollection=arguments);
@@ -168,7 +167,7 @@ Description :
 			return populateFromStruct(argumentCollection=arguments);
 		</cfscript>
 	</cffunction>
-	
+
 	<!---Populate from a struct with prefix --->
 	<cffunction name="populateFromStructWithPrefix" access="public" returntype="any" hint="Populate a named or instantiated bean from a structure" output="false" >
 		<!--- ************************************************************* --->
@@ -198,10 +197,10 @@ Description :
 					newMemento[ trueName ] = arguments.memento[ key ];
 				}
 			}
-			
+
 			// override memento
 			arguments.memento = newMemento;
-			
+
 			//populate bean and return
 			return populateFromStruct( argumentCollection=arguments );
 		</cfscript>
@@ -249,8 +248,17 @@ Description :
 				for(key in arguments.memento){
 					// init population flag
 					pop = true;
-					// init nullValue flag
-					nullValue = false;
+					// init nullValue flag and shortcut to property value
+					// conditional with StructKeyExist, to prevent language issues with Null value checking of struct keys in ACF
+					if ( structKeyExists( arguments.memento, key) ){
+						nullValue = false;
+						propertyValue = arguments.memento[ key ];
+
+					} else {
+						nullValue = true;
+						propertyValue = JavaCast( "null", "" );
+					}
+
 					// Include List?
 					if( len(arguments.include) AND NOT listFindNoCase(arguments.include,key) ){
 						pop = false;
@@ -259,15 +267,13 @@ Description :
 					if( len(arguments.exclude) AND listFindNoCase(arguments.exclude,key) ){
 						pop = false;
 					}
-					// Ignore Empty?
-					if( arguments.ignoreEmpty and isSimpleValue(arguments.memento[key]) and not len( trim( arguments.memento[key] ) ) ){
+					// Ignore Empty? Check added for real Null value
+					if( arguments.ignoreEmpty and not IsNull(propertyValue) and isSimpleValue(arguments.memento[key]) and not len( trim( arguments.memento[key] ) ) ){
 						pop = false;
 					}
 
 					// Pop?
 					if( pop ){
-						// shortcut to property value
-						propertyValue = arguments.memento[ key ];
 						// Scope Injection?
 						if( scopeInjection ){
 							beanInstance.populatePropertyMixin(propertyName=key,propertyValue=propertyValue,scope=arguments.scope);
@@ -284,13 +290,14 @@ Description :
 							// Is property in empty-to-null include list?
 							if( ( len( arguments.nullEmptyInclude ) && listFindNoCase( arguments.nullEmptyInclude, key ) ) ) {
 								nullValue = true;
-							} 
+							}
 							// Is property in empty-to-null exclude list, or is exclude list "*"?
 							if( ( len( arguments.nullEmptyExclude ) AND listFindNoCase( arguments.nullEmptyExclude, key ) ) ){
 								nullValue = false;
 							}
 							// Is value nullable (e.g., simple, empty string)? If so, set null...
-							if( isSimpleValue( propertyValue ) && !len( trim( propertyValue ) ) && nullValue ) {
+							// short circuit evealuaton of IsNull added, so it won't break IsSimpleValue with Real null values. Real nulls are already set.
+							if( !IsNull(propertyValue) && isSimpleValue( propertyValue ) && !len( trim( propertyValue ) ) && nullValue ) {
 								propertyValue = JavaCast( "null", "" );
 							}
 
@@ -322,11 +329,11 @@ Description :
 										targetEntityName = getComponentMetaData( relationalMeta[ key ].cfc ).entityName;
 									}
 									catch( any e ) {
-										getUtil().throwIt(type="BeanPopulator.PopulateBeanException",
+										throw(type="BeanPopulator.PopulateBeanException",
 							  			  message="Error populating bean #getMetaData(beanInstance).name# relationship of #key#. The component #relationalMeta[ key ].cfc# could not be found.",
 							  			  detail="#e.Detail#<br>#e.message#<br>#e.tagContext.toString()#");
 									}
-									
+
 								}
 								// if targetEntityName was successfully found
 								if( len( targetEntityName) ) {
@@ -359,7 +366,7 @@ Description :
 															keyValue = evaluate("item.get#structKeyColumn#()");
 														}
 														catch( Any e ) {
-															getUtil().throwIt(type="BeanPopulator.PopulateBeanException",
+															throw(type="BeanPopulator.PopulateBeanException",
                     							  			  message="Error populating bean #getMetaData(beanInstance).name# relationship of #key#. The structKeyColumn #structKeyColumn# could not be resolved.",
                     							  			  detail="#e.Detail#<br>#e.message#<br>#e.tagContext.toString()#");
 														}
@@ -379,7 +386,7 @@ Description :
 										if( isSimpleValue( propertyValue ) && trim( propertyValue ) != "" ) {
 											propertyValue = EntityLoadByPK( targetEntityName, propertyValue );
 										}
-									}	
+									}
 								} // if target entity name found
 							}
 							// Populate the property as a null value
@@ -391,7 +398,7 @@ Description :
 							else {
 								evaluate( "beanInstance.set#key#( propertyValue )" );
 							}
-							
+
 						} // end if setter or scope injection
 					}// end if prop ignored
 
@@ -408,9 +415,9 @@ Description :
 				else{
 		        	arguments.keyTypeAsString = propertyValue.getClass().toString();
 				}
-				getUtil().throwIt(type="BeanPopulator.PopulateBeanException",
-					  			  message="Error populating bean #getMetaData(beanInstance).name# with argument #key# of type #arguments.keyTypeAsString#.",
-					  			  detail="#e.Detail#<br>#e.message#<br>#e.tagContext.toString()#");
+				throw(type="BeanPopulator.PopulateBeanException",
+					  message="Error populating bean #getMetaData(beanInstance).name# with argument #key# of type #arguments.keyTypeAsString#.",
+					  detail="#e.Detail#<br>#e.message#<br>#e.tagContext.toString()#");
 			}
 		</cfscript>
 	</cffunction>
@@ -421,13 +428,15 @@ Description :
 		<cfscript>
 			var meta = {};
 			// get array of properties
-			var properties = getMetaData( arguments.target ).properties;
+			var stopRecursions= [ "lucee.Component", "railo.Component", "WEB-INF.cftags.component" ];
+			var properties = getUtil().getInheritedMetaData( arguments.target, stopRecursions ).properties; 
+
 			// loop over properties
 			for( var i = 1; i <= arrayLen( properties ); i++ ) {
 				var property = properties[ i ];
 				// if property has a name, a fieldtype, and is not the ID, add to maps
-				if( structKeyExists( property, "fieldtype" ) && 
-					structKeyExists( property, "name" ) && 
+				if( structKeyExists( property, "fieldtype" ) &&
+					structKeyExists( property, "name" ) &&
 					!listFindNoCase( "id,column", property.fieldtype ) ) {
 					meta[ property.name ] = property;
 				}

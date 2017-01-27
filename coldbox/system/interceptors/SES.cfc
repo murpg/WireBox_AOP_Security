@@ -1,7 +1,7 @@
 ﻿<!-----------------------------------------------------------------------
 ********************************************************************************
 Copyright Since 2005 ColdBox Framework by Luis Majano and Ortus Solutions, Corp
-www.coldbox.org | www.luismajano.com | www.ortussolutions.com
+www.ortussolutions.com
 ********************************************************************************
 
 Author     :	Luis Majano
@@ -17,7 +17,7 @@ Description :
 
 <!------------------------------------------- CONSTRUCTOR ------------------------------------------->
 
-	<cffunction name="configure" access="public" returntype="void" hint="This is where the ses plugin configures itself." output="false" >
+	<cffunction name="configure" access="public" returntype="void" hint="This is where the ses service configures itself." output="false" >
 		<cfscript>
 			// with closure
 			instance.withClosure = {};
@@ -92,7 +92,7 @@ Description :
 			var key 		 = "";
 			var routedStruct = structnew();
 			var rc 			 = arguments.event.getCollection();
-			var cleanedPaths = getCleanedPaths( rc, arguments.event );
+            var cleanedPaths = getCleanedPaths( rc, arguments.event );
 			var HTTPMethod	 = arguments.event.getHTTPMethod();
 
 			// Check if disabled or in proxy mode, if it is, then exit out.
@@ -106,17 +106,17 @@ Description :
 
 			// Check for invalid URLs if in strict mode via unique URLs
 			if( instance.uniqueURLs ){
-				checkForInvalidURL( cleanedPaths["pathInfo"] , cleanedPaths["scriptName"], arguments.event );
+				checkForInvalidURL( cleanedPaths[ "pathInfo" ] , cleanedPaths[ "scriptName" ], arguments.event );
 			}
 
 			// Extension detection if enabled, so we can do cool extension formats
 			if( instance.extensionDetection ){
-				cleanedPaths["pathInfo"] = detectExtension( cleanedPaths["pathInfo"], arguments.event );
+				cleanedPaths[ "pathInfo" ] = detectExtension( cleanedPaths[ "pathInfo" ], arguments.event );
 			}
 
 			// Find a route to dispatch
-			aRoute = findRoute(action=cleanedPaths["pathInfo"],event=arguments.event);
-			
+			aRoute = findRoute(action=cleanedPaths[ "pathInfo" ],event=arguments.event);
+
 			// Now route should have all the key/pairs from the URL we need to pass to our event object for processing
 			for( key in aRoute ){
 				// Reserved Keys Check, only translate NON reserved keys
@@ -127,32 +127,32 @@ Description :
 			}
 
 			// Create Event To Dispatch if handler key exists
-			if( structKeyExists( aRoute,"handler" ) ){
-				// If no action found, default to the convention of the framework, must likely 'index'
-				if( NOT structKeyExists(aRoute,"action") ){
-					aRoute.action = getDefaultFrameworkAction();
-				}
-				// else check if using HTTP method actions via struct
-				else if( isStruct(aRoute.action) ){
-					// Verify HTTP method used is valid, else throw exception and 403 error
-					if( structKeyExists(aRoute.action,HTTPMethod) ){
-						aRoute.action = aRoute.action[HTTPMethod];
+			if( structKeyExists( aRoute, "handler" ) ){
+				// Check if using HTTP method actions via struct
+				if( structKeyExists( aRoute, "action" ) && isStruct( aRoute.action ) ){
+					// Verify HTTP method used is valid
+					if( structKeyExists( aRoute.action, HTTPMethod ) ){
+						aRoute.action = aRoute.action[ HTTPMethod ];
 						// Send for logging in debug mode
 						if( log.canDebug() ){
-							log.debug("Matched HTTP Method (#HTTPMethod#) to routed action: #aRoute.action#");
+							log.debug( "Matched HTTP Method (#HTTPMethod#) to routed action: #aRoute.action#" );
 						}
-					}
-					else{
-						getUtil().throwInvalidHTTP(className="SES",
-												   detail="The HTTP method used: #HTTPMethod# is not valid for the current executing resource. Valid methods are: #aRoute.action.toString()#",
-										 		   statusText="Invalid HTTP method: #HTTPMethod#",
-										 		   statusCode="405");
+					} else {
+						// Mark as invalid HTTP Exception
+						aRoute.action = "onInvalidHTTPMethod";
+						arguments.event.setIsInvalidHTTPMethod( true );
+						if( log.canDebug() ){
+							log.debug( "Invalid HTTP Method detected: #HTTPMethod#", aRoute );
+						}
 					}
 				}
 				// Create routed event
-				rc[ instance.eventName ] = aRoute.handler & "." & aRoute.action;
- 
-				// Do we have a module?If so, create routed module event.
+				rc[ instance.eventName ] = aRoute.handler;
+				if( structKeyExists(aRoute,"action") ){
+					rc[ instance.eventName ] &= "." & aRoute.action;
+				}
+
+				// Do we have a module? If so, create routed module event.
 				if( len( aRoute.module ) ){
 					rc[ instance.eventName ] = aRoute.module & ":" & rc[ instance.eventName ];
 				}
@@ -174,9 +174,9 @@ Description :
 			arguments.event.setRoutedStruct( routedStruct );
 		</cfscript>
 	</cffunction>
-	
-	<!--- renderResponse --->    
-    <cffunction name="renderResponse" output="false" access="private" returntype="any" hint="Render a RESTful response">    
+
+	<!--- renderResponse --->
+    <cffunction name="renderResponse" output="false" access="private" returntype="any" hint="Render a RESTful response">
     	<cfargument name="route" required="true" hint="The route response"/>
     	<cfargument name="event" required="true" hint="The event object.">
 		<cfscript>
@@ -185,11 +185,11 @@ Description :
 			var thisReplacement = "";
 			var thisKey			= "";
 			var theResponse		= "";
-			
+
 			// standardize status codes
 			if( !structKeyExists( aRoute, "statusCode") ){ aRoute.statusCode = 200; }
 			if( !structKeyExists( aRoute, "statusText") ){ aRoute.statusText = ""; }
-				
+
 			// simple values
 			if( isSimpleValue( aRoute.response ) ){
 				// setup default response
@@ -198,21 +198,21 @@ Description :
 				replacements = reMatchNoCase( "{[^{]+?}", aRoute.response );
 				for( thisReplacement in replacements ){
 					thisKey = reReplaceNoCase( thisReplacement, "({|})", "", "all" );
-					if( event.valueExists( thisKey ) ){				
+					if( event.valueExists( thisKey ) ){
 						theResponse = replace( aRoute.response, thisReplacement, event.getValue( thisKey ), "all");
 					}
 				}
-				
+
 			}
 			// Closure
 			else{
-				theResponse = aRoute.response( event.getCollection() );				
-			} 
-			
+				theResponse = aRoute.response( event.getCollection() );
+			}
+
 			// render it out
 			event.renderdata(data=theResponse, statusCode=aRoute.statusCode, statusText=aRoute.statusText)
 				.noExecution();
-    	</cfscript>    
+    	</cfscript>
     </cffunction>
 
 <!------------------------------------------- PUBLIC ------------------------------------------->
@@ -229,7 +229,7 @@ Description :
 
 			// Verify module exists and loaded
 			if( NOT structKeyExists(mConfig,arguments.module) ){
-				$throw(message="Error loading module routes as the module requested '#arguments.module#' is not loaded.",
+				throw(message="Error loading module routes as the module requested '#arguments.module#' is not loaded.",
 					   detail="The loaded modules are: #structKeyList(mConfig)#",
 					   type="SES.InvalidModuleName");
 			}
@@ -364,10 +364,10 @@ Description :
 				structdelete(variables,"pathInfoProvider");
 				structdelete(this,"pathInfoProvider");
 				// Import configuration
-				$include( arguments.location );
+				include arguments.location;
 			}
 			catch(Any e){
-				$throw("Error importing routes configuration file: #e.message# #e.detail#",e.tagContext.toString(),"SES.IncludeRoutingConfig");
+				throw("Error importing routes configuration file: #e.message# #e.detail#",e.tagContext.toString(),"SES.IncludeRoutingConfig");
 			}
 			return this;
     	</cfscript>
@@ -462,16 +462,26 @@ Description :
 			patternType = "alphanumeric";
 			if( findnoCase("-numeric",thisPattern) ){ patternType = "numeric"; }
 			if( findnoCase("-alpha",thisPattern) ){ patternType = "alpha"; }
-			if( findNoCase("regex:",thisPattern) ){ patternType = "regex"; }
+			// This is a prefix like above to match a param (creates rc variable)
+			if( findNoCase("-regex:",thisPattern) ){ patternType = "regexParam"; }
+			// This is a placeholder for static text in the route
+			else if( findNoCase("regex:",thisPattern) ){ patternType = "regex"; }
 
 			// Pattern Type Regex
 			switch(patternType){
-				// CUSTOM REGEX
+				// CUSTOM REGEX for static route parts
 				case "regex" : {
 					thisRegex = replacenocase(thisPattern,"regex:","");
 					break;
 				}
-
+				// CUSTOM REGEX for route param
+				case "regexParam" : {
+					// Pull out Regex Pattern
+					thisRegex = REReplace(thisPattern, ":.*?-regex:", "");
+					// Add Route Param
+					arrayAppend(thisRoute.patternParams,thisPatternParam);
+					break;
+				}
 				// ALPHANUMERICAL OPTIONAL
 				case "alphanumeric" : {
 					if( find(":",thisPattern) ){
@@ -658,7 +668,7 @@ Description :
 			if( structKeyExists(instance.namespaceRoutingTable, arguments.namespace) ){
 				return instance.namespaceRoutingTable[ arguments.namespace ];
 			}
-			$throw(message="Namespace routes for #arguments.namespace# do not exists",
+			throw(message="Namespace routes for #arguments.namespace# do not exists",
 				  detail="Loaded namespace routes are #structKeyList(instance.namespaceRoutingTable)#",
 				  type="SES.InvalidNamespaceException");
 		</cfscript>
@@ -713,7 +723,7 @@ Description :
 			if( structKeyExists(instance.moduleRoutingTable, arguments.module) ){
 				return instance.moduleRoutingTable[ arguments.module ];
 			}
-			$throw(message="Module routes for #arguments.module# do not exists", detail="Loaded module routes are #structKeyList(instance.moduleRoutingTable)#",type="SES.InvalidModuleException");
+			throw(message="Module routes for #arguments.module# do not exists", detail="Loaded module routes are #structKeyList(instance.moduleRoutingTable)#",type="SES.InvalidModuleException");
 		</cfscript>
 	</cffunction>
 
@@ -775,11 +785,6 @@ Description :
 		<cfset instance.routes = arguments.routes/>
 	</cffunction>
 
-	<!--- Get Default Framework Action --->
-	<cffunction name="getDefaultFrameworkAction" access="private" returntype="string" hint="Get the default framework action" output="false" >
-		<cfreturn getController().getSetting("eventAction",1)>
-	</cffunction>
-
 	<!--- CGI Element Facade. --->
 	<cffunction name="getCGIElement" access="private" returntype="any" hint="The cgi element facade method" output="true" >
 		<cfargument name="cgielement" required="true" hint="The cgi element to retrieve">
@@ -787,11 +792,10 @@ Description :
 		<cfscript>
 			// Allow a UDF to manipulate the CGI.PATH_INFO value
 			// in advance of route detection.
-			if (arguments.cgielement EQ 'path_info' AND structKeyExists(variables, 'PathInfoProvider'))
-			{
-				return PathInfoProvider(event=arguments.Event);
+			if( arguments.cgielement EQ 'path_info' AND structKeyExists( variables, 'PathInfoProvider' ) ){
+				return PathInfoProvider( event=arguments.Event );
 			}
-			return CGI[arguments.CGIElement];
+			return CGI[ arguments.CGIElement ];
 		</cfscript>
 	</cffunction>
 
@@ -951,9 +955,7 @@ Description :
 					<cfset newpath = "/" & handler />
 				</cfif>
 				<!--- route path with handler + action if not the default event action --->
-				<cfif len(handler)
-					  AND len(action)
-					  AND action NEQ getDefaultFrameworkAction()>
+				<cfif len(handler) AND len(action)>
 					<cfset newpath = newpath & "/" & action />
 				</cfif>
 			</cfif>
@@ -981,23 +983,23 @@ Description :
 		<cfargument name="requestString"  required="true" hint="The request string">
 		<cfargument name="rc"  			  required="true" hint="The request collection">
 		<cfscript>
-			var varMatch = 0;
-			var qsValues = 0;
-			var qsVal = 0;
-			var x = 1;
-
 			// Find a Matching position of IIS ?
-			varMatch = REFind("\?.*=",arguments.requestString,1,"TRUE");
-			if( varMatch.pos[1] ){
+			var varMatch = REFind( "\?.*=", arguments.requestString, 1, "TRUE" );
+			if( varMatch.pos[ 1 ] ){
 				// Copy values to the RC
-				qsValues = REreplacenocase(arguments.requestString,"^.*\?","","all");
+				var qsValues 	= REreplacenocase( arguments.requestString, "^.*\?", "", "all" );
+				var qsVal 		= 0;
 				// loop and create
-				for(x=1; x lte listLen(qsValues,"&"); x=x+1){
-					qsVal = listGetAt(qsValues,x,"&");
-					arguments.rc[listFirst(qsVal,"=")] = listLast(qsVal,"=");
+				for( var x=1; x lte listLen( qsValues, "&" ); x=x+1 ){
+					qsVal = listGetAt( qsValues, x, "&" );
+					if( listlen( qsVal, '=' ) > 1 ) {
+						arguments.rc[ URLDecode( listFirst( qsVal, "=" ) ) ] = URLDecode( listLast( qsVal, "=" ) );
+					} else {
+						arguments.rc[ URLDecode( listFirst( qsVal, "=" ) ) ] = '';
+					}
 				}
 				// Clean the request string
-				arguments.requestString = Mid(arguments.requestString, 1, (varMatch.pos[1]-1));
+				arguments.requestString = Mid( arguments.requestString, 1, ( varMatch.pos[ 1 ] -1 ) );
 			}
 
 			return arguments.requestString;
@@ -1005,7 +1007,7 @@ Description :
 	</cffunction>
 
 	<!--- Find a route --->
-	<cffunction name="findRoute" access="private" output="false" returntype="any" hint="Figures out which route matches this request and returns a routed structure">
+	<cffunction name="findRoute" access="public" output="false" returntype="any" hint="Figures out which route matches this request and returns a routed structure">
 		<!--- ************************************************************* --->
 		<cfargument name="action" 	 required="true"  hint="The action evaluated by the path_info">
 		<cfargument name="event" 	 required="true"  hint="The event object.">
@@ -1055,7 +1057,7 @@ Description :
 				if( (match.len[1] IS NOT 0 AND getLooseMatching())
 				     OR
 				    (NOT getLooseMatching() AND match.len[1] IS NOT 0 AND match.pos[1] EQ 1) ){
-					
+
 					// Verify condition matching
 					if( structKeyExists( _routes[ i ], "condition" ) AND NOT isSimpleValue( _routes[ i ].condition ) AND NOT _routes[ i ].condition(requestString) ){
 						// Debug logging
@@ -1065,7 +1067,7 @@ Description :
 						// Condition did not pass, move to next route
 						continue;
 					}
-					
+
 					// Setup the found Route
 					foundRoute = _routes[i];
 					// Is this namespace routing?
@@ -1093,7 +1095,7 @@ Description :
 			if( foundRoute.ssl AND NOT event.isSSL() ){
 				setNextEvent(URL=event.getSESBaseURL() & reReplace(cgi.path_info, "^\/", ""), ssl=true, statusCode=302, queryString=cgi.query_string);
 			}
-			
+
 			// Check if the match is a module Routing entry point or a namespace entry point or not?
 			if( len( foundRoute.moduleRouting ) OR len( foundRoute.namespaceRouting ) ){
 				// build routing argument struct
@@ -1141,7 +1143,7 @@ Description :
 						log.debug("SES Package Resolved: #packagedRequestString#");
 					}
 					// Return found Route recursively.
-					return findRoute(action=packagedRequestString,event=arguments.event);
+					return findRoute( action=packagedRequestString, event=arguments.event, module=arguments.module );
 				}
 			}
 
@@ -1225,27 +1227,28 @@ Description :
 			var items = structnew();
 
 			// Get path_info & script name
-			items["pathInfo"] 	= getCGIElement('path_info',arguments.event);
-			items["scriptName"] = trim( reReplacenocase(getCGIElement('script_name',arguments.event),"[/\\]index\.cfm","") );
+			// Replace any duplicate slashes with 1 just in case
+			items[ "pathInfo" ]		= trim( reReplace( getCGIElement( 'path_info', arguments.event ), "\/{2,}", "/", "all" ) );
+			items[ "scriptName" ] 	= trim( reReplacenocase( getCGIElement( 'script_name', arguments.event ), "[/\\]index\.cfm", "" ) );
 
 			// Clean ContextRoots
 			if( len( getContextRoot() ) ){
-				//items["pathInfo"] 	= replacenocase(items["pathInfo"],getContextRoot(),"");
-				items["scriptName"] = replacenocase(items["scriptName"],getContextRoot(),"");
+				//items[ "pathInfo" ] 	= replacenocase(items[ "pathInfo" ],getContextRoot(),"");
+				items[ "scriptName" ] = replacenocase( items[ "scriptName" ], getContextRoot(),"" );
 			}
 
 			// Clean up the path_info from index.cfm
-			items["pathInfo"] = trim(reReplacenocase(items["pathInfo"],"[/\\]index\.cfm",""));
-			// Clean the scriptname from the pathinfo inccase this is a nested application
-			if( len( items["scriptName"] ) ){
-				items["pathInfo"] = replaceNocase(items["pathInfo"],items["scriptName"],'');
+			items[ "pathInfo" ] = trim( reReplacenocase( items[ "pathInfo" ], "^[/\\]index\.cfm", "" ) );
+			// Clean the scriptname from the pathinfo if it is the first item in case this is a nested application
+			if( len( items[ "scriptName" ] ) ){
+				items["pathInfo"] = reReplaceNocase(items["pathInfo"], "^#items["scriptName"]#","");
 			}
 
 			// clean 1 or > / in front of route in some cases, scope = one by default
-			items["pathInfo"] = reReplaceNoCase(items["pathInfo"], "^/+", "/");
+			items[ "pathInfo" ] = reReplaceNoCase( items[ "pathInfo" ], "^/+", "/" );
 
 			// fix URL vars after ?
-			items["pathInfo"] = fixIISURLVars(items["pathInfo"],arguments.rc);
+			items[ "pathInfo" ] = fixIISURLVars( items[ "pathInfo" ], arguments.rc );
 
 			return items;
 		</cfscript>
@@ -1314,7 +1317,7 @@ Description :
 				//Check absolute location as not found inside our app
 				configFilePath = getProperty('ConfigFile');
 				if( NOT fileExists(expandPath(configFilePath)) ){
-					$throw(message="Error locating routes file: #configFilePath#",type="SES.ConfigFileNotFound");
+					throw(message="Error locating routes file: #configFilePath#",type="SES.ConfigFileNotFound");
 				}
 			}
 
@@ -1323,7 +1326,7 @@ Description :
 
 			// Validate the base URL
 			if ( len( getBaseURL() ) eq 0 ){
-				$throw('The baseURL property has not been defined. Please define it using the setBaseURL() method.','','interceptors.SES.invalidPropertyException');
+				throw('The baseURL property has not been defined. Please define it using the setBaseURL() method.','','interceptors.SES.invalidPropertyException');
 			}
 		</cfscript>
 	</cffunction>
