@@ -6,7 +6,9 @@ www.coldbox.org | www.luismajano.com | www.ortussolutions.com
 
 Author      :	Brad Wood
 Date        :	1/6/2014
-Description :	This is the Application.cfc for usage withing the ColdBox Framework.
+Description :	This is the Application.cfc for usage with the ColdBox Framework.
+
+George Murphy updated to ColdBox 4.3 1/28/2017
 	
 ------------------------------------------------------------------------------ */
 component {
@@ -25,7 +27,7 @@ component {
 			//Load ColdBox Bootstrap
 			application.cbBootstrap = new coldbox.system.Bootstrap( COLDBOX_CONFIG_FILE, COLDBOX_APP_ROOT_PATH, COLDBOX_APP_KEY, COLDBOX_APP_MAPPING );
 			application.cbBootstrap.loadColdbox();
-			//writeDump(application.cbBootstrap); abort;
+			
 			return true;
 	}
 	
