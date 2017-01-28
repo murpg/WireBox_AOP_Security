@@ -5,7 +5,7 @@
 	<br>
 	<br>
 	
-	<img src="includes/images/Answer_to_Life.png">
+	<img src="/includes/images/Answer_to_Life.png">
 	
 	<br>
 	<br>

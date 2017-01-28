@@ -18,7 +18,21 @@
 			//Application Aspects
 			handlerCaching 			= false
 		};
-				
+		//Interceptor Settings
+		interceptorSettings = {
+			throwOnInvalidStates = false,
+			customInterceptionPoints = ""
+		};
+
+		//Register interceptors as an array, we need order
+		interceptors = [
+			//SES
+			{class="coldbox.system.interceptors.SES",
+			 properties={}
+			}
+
+		];
+
 		// These are just settings I use for the layout of the Demo to make this sample app easier to reuse.
 		settings = {
 			demoTitle = 'WireBox AOP For Security',

@@ -5,7 +5,7 @@
 	<br>
 	<br>
 	
-	<img src="includes/images/noEntry.jpg">
+	<img src="/includes/images/noEntry.jpg">
 		
 	<br>
 	<br>
